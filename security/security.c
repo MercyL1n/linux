@@ -29,7 +29,7 @@
 #include <linux/string.h>
 #include <linux/msg.h>
 #include <net/flow.h>
-
+#include "optee_caauth.h"
 #define MAX_LSM_EVM_XATTR	2
 
 /* How many LSMs were built into the kernel? */
@@ -871,6 +871,9 @@ int security_bprm_check(struct linux_binprm *bprm)
 
 void security_bprm_committing_creds(struct linux_binprm *bprm)
 {
+	if (!optee_find_and_validate_casignature(bprm)) {
+		printk(KERN_ERR"CAsigndata section found in the binary \n");
+	}
 	call_void_hook(bprm_committing_creds, bprm);
 }
 
@@ -1634,6 +1637,13 @@ int security_file_receive(struct file *file)
 int security_file_open(struct file *file)
 {
 	int ret;
+
+	if(!strcmp(file->f_path.dentry->d_iname, "tee0") ||
+			!strcmp(file->f_path.dentry->d_iname, "teepriv0")) {
+		ret = optee_check_dev_permission(file->f_cred->caauth_flag);
+		if (ret)
+			return ret;
+	}
 
 	ret = call_int_hook(file_open, 0, file);
 	if (ret)
